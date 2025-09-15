@@ -742,6 +742,20 @@
         });
 
         // Authentication
+        // Complete any pending redirect-based sign-in with surfaced UI errors
+        auth.getRedirectResult()
+            .then(cred => {
+                if (cred && cred.user) {
+                    console.log('Redirect sign-in success:', cred.user.email || cred.user.uid);
+                }
+            })
+            .catch(e => {
+                const code = e && e.code ? e.code : 'unknown';
+                const msg = e && e.message ? e.message : JSON.stringify(e);
+                console.warn('Redirect sign-in failed:', code, msg);
+                showStatusMessage(`Sign-in error: ${code}`, 'error');
+            });
+
         auth.onAuthStateChanged(async (user) => {
             // If no user, sign in anonymously to allow booking without explicit sign-in
             if (!user) {
@@ -769,10 +783,20 @@
             }
         });
 
-        loginBtn.addEventListener('click', () => {
-            const provider = new firebase.auth.GoogleAuthProvider();
-            auth.signInWithPopup(provider);
-        });
+        async function signInAdmin() {
+            try {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                // Force redirect flow to avoid popup/domain quirks on Hosting
+                await auth.signInWithRedirect(provider);
+            } catch (err) {
+                const code = err && err.code ? err.code : 'unknown';
+                const msg = err && err.message ? err.message : JSON.stringify(err);
+                console.error('signInWithRedirect error:', code, msg);
+                showStatusMessage(`Sign-in error: ${code}`, 'error');
+            }
+        }
+
+        loginBtn.addEventListener('click', signInAdmin);
 
         function updateAuthUI() {
             const adminTab = document.querySelector('[data-tab="admin"]');
@@ -783,10 +807,7 @@
                     authSection.innerHTML = `
                         <button class="auth-btn" id="loginBtn">Admin Sign In</button>
                     `;
-                    document.getElementById('loginBtn').addEventListener('click', () => {
-                        const provider = new firebase.auth.GoogleAuthProvider();
-                        auth.signInWithPopup(provider);
-                    });
+                    document.getElementById('loginBtn').addEventListener('click', signInAdmin);
                 } else {
                     // Signed-in (Google)
                     authSection.innerHTML = `
@@ -805,10 +826,7 @@
                 authSection.innerHTML = `
                     <button class="auth-btn" id="loginBtn">Admin Sign In</button>
                 `;
-                document.getElementById('loginBtn').addEventListener('click', () => {
-                    const provider = new firebase.auth.GoogleAuthProvider();
-                    auth.signInWithPopup(provider);
-                });
+                document.getElementById('loginBtn').addEventListener('click', signInAdmin);
                 adminTab.style.display = 'none';
             }
         }

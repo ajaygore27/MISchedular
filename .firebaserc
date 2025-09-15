@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "mi-scheduler-43feb"
-  }
+    "default": "mi-scheduler-43feb",
+    "test": "testapp-2be03"
+  },
+  "targets": {},
+  "etags": {}
 }
