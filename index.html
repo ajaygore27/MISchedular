@@ -618,6 +618,27 @@
                             When enabled, all registrations will be cleared automatically at the set time.
                         </div>
                     </div>
+
+                    <!-- Auto Clear Time Modal -->
+                    <div id="autoClearModal" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); align-items: center; justify-content: center; z-index: 9999;">
+                        <div style="background:#fff; border-radius:12px; padding:20px; width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+                            <div style="font-weight:700; color:#111827; margin-bottom:10px;">Set Auto-Clear Time</div>
+                            <div style="display:flex; gap:10px; align-items:center; margin-bottom: 16px;">
+                                <div style="flex:1;">
+                                    <label style="font-size:12px; color:#374151;">Hour (00-23)</label>
+                                    <select id="autoClearHour" style="width:100%; padding:10px; border:2px solid #e2e8f0; border-radius:8px;"></select>
+                                </div>
+                                <div style="flex:1;">
+                                    <label style="font-size:12px; color:#374151;">Minute (00-59)</label>
+                                    <select id="autoClearMinute" style="width:100%; padding:10px; border:2px solid #e2e8f0; border-radius:8px;"></select>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                                <button id="autoClearCancel" class="btn btn-secondary" style="min-width:auto; padding:8px 14px;">Cancel</button>
+                                <button id="autoClearSave" class="btn btn-primary" style="min-width:auto; padding:8px 14px;">Save</button>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="export-options">
                         <div class="export-card" id="excelExport">
@@ -736,6 +757,11 @@
         const autoClearToggle = document.getElementById('autoClearToggle');
         const autoClearTime = document.getElementById('autoClearTime');
         const autoClearStatus = document.getElementById('autoClearStatus');
+        const autoClearModal = document.getElementById('autoClearModal');
+        const autoClearHour = document.getElementById('autoClearHour');
+        const autoClearMinute = document.getElementById('autoClearMinute');
+        const autoClearCancel = document.getElementById('autoClearCancel');
+        const autoClearSave = document.getElementById('autoClearSave');
         let autoClearInterval = null;
 
         // Tab functionality
@@ -778,7 +804,9 @@
 
             // We have a user (could be anonymous or Google)
             currentUser = user;
-            isAdmin = user && !user.isAnonymous ? await checkAdminStatus(user.email) : false;
+            // Normalize email and re-check admin status; keep admin tab visible while checking
+            const userEmail = user && user.email ? user.email.toLowerCase() : '';
+            isAdmin = user && !user.isAnonymous ? await checkAdminStatus(userEmail) : false;
             updateAuthUI();
             await loadData();
             renderTimeSlots();
@@ -842,7 +870,8 @@
 
         async function checkAdminStatus(email) {
             try {
-                const adminDoc = await db.collection('admins').doc(email).get();
+                const emailKey = (email || '').toLowerCase();
+                const adminDoc = await db.collection('admins').doc(emailKey).get();
                 return adminDoc.exists;
             } catch (error) {
                 console.error('Error checking admin status:', error);
@@ -1444,14 +1473,39 @@
         // Auto-clear functionality
         function setupAutoClearListeners() {
             if (!autoClearToggle || !autoClearTime) return;
+
+            // populate hour/minute selects once
+            if (autoClearHour && autoClearHour.options.length === 0) {
+                for (let h = 0; h <= 23; h++) {
+                    const opt = document.createElement('option');
+                    opt.value = String(h).padStart(2, '0');
+                    opt.textContent = String(h).padStart(2, '0');
+                    autoClearHour.appendChild(opt);
+                }
+            }
+            if (autoClearMinute && autoClearMinute.options.length === 0) {
+                for (let m = 0; m <= 59; m++) {
+                    const opt = document.createElement('option');
+                    opt.value = String(m).padStart(2, '0');
+                    opt.textContent = String(m).padStart(2, '0');
+                    autoClearMinute.appendChild(opt);
+                }
+            }
+
             autoClearToggle.addEventListener('change', async function() {
                 const enabled = this.checked;
                 autoClearTime.disabled = !enabled;
                 
-                if (enabled && autoClearTime.value) {
-                    await saveAutoClearSettings(enabled, autoClearTime.value);
-                    startAutoClearTimer();
-                    updateAutoClearStatus();
+                if (enabled) {
+                    if (autoClearTime.value) {
+                        await saveAutoClearSettings(true, autoClearTime.value);
+                        startAutoClearTimer();
+                        updateAutoClearStatus();
+                    } else {
+                        // Open native time picker if supported; otherwise focus
+                        try { if (typeof autoClearTime.showPicker === 'function') { autoClearTime.showPicker(); } } catch {}
+                        autoClearTime.focus();
+                    }
                 } else {
                     await saveAutoClearSettings(false, '');
                     stopAutoClearTimer();
@@ -1459,13 +1513,65 @@
                 }
             });
 
+            // Validate and save when time changes
             autoClearTime.addEventListener('change', async function() {
-                if (autoClearToggle.checked && this.value) {
-                    await saveAutoClearSettings(true, this.value);
+                if (!autoClearToggle.checked) return;
+                const val = (this.value || '').trim();
+                if (!val) {
+                    updateAutoClearStatus();
+                    return;
+                }
+                // Enforce HH:MM (00-23:00-59)
+                const isValid = /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(val);
+                if (!isValid) {
+                    alert('Please choose a valid time (HH:MM). Minutes cannot be more than 59.');
+                    this.value = '';
+                    updateAutoClearStatus();
+                    return;
+                }
+                await saveAutoClearSettings(true, val);
+                startAutoClearTimer();
+                updateAutoClearStatus();
+            });
+
+            if (autoClearCancel) {
+                autoClearCancel.addEventListener('click', () => closeAutoClearModal());
+            }
+            if (autoClearSave) {
+                autoClearSave.addEventListener('click', async () => {
+                    const h = autoClearHour ? autoClearHour.value : '';
+                    const m = autoClearMinute ? autoClearMinute.value : '';
+                    if (!/^(?:[01]\d|2[0-3])$/.test(h) || !/^[0-5]\d$/.test(m)) {
+                        showStatusMessage('Please select a valid time (HH:MM).', 'error');
+                        return;
+                    }
+                    const timeVal = `${h}:${m}`;
+                    autoClearTime.value = timeVal;
+                    await saveAutoClearSettings(true, timeVal);
                     startAutoClearTimer();
                     updateAutoClearStatus();
+                    closeAutoClearModal();
+                });
+            }
+        }
+
+        function openAutoClearModalFromCurrent() {
+            try {
+                const [h, m] = (autoClearTime.value || '00:00').split(':');
+                if (autoClearHour && autoClearMinute) {
+                    autoClearHour.value = String(h).padStart(2, '0');
+                    autoClearMinute.value = String(m).padStart(2, '0');
                 }
-            });
+            } catch {}
+            if (autoClearModal) {
+                autoClearModal.style.display = 'flex';
+            }
+        }
+
+        function closeAutoClearModal() {
+            if (autoClearModal) {
+                autoClearModal.style.display = 'none';
+            }
         }
 
         async function saveAutoClearSettings(enabled, time) {
