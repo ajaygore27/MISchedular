@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow authenticated users to read/write participants
+    match /participants/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Only admins can read admin collection
+    match /admins/{document} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only manually add admins through Firebase Console
+    }
+    
+    // Allow authenticated users to read slot configurations
+    match /slots/{document} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        exists(/databases/$(database)/documents/admins/$(request.auth.token.email));
+    }
+  }
+}

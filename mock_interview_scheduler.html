@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock Interview Booking - 26th August 2025</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            padding: 30px 20px;
+            text-align: center;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px 20px;
+        }
+
+        .greeting {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .instruction {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .time-slots {
+            space-y: 15px;
+        }
+
+        .slot {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .slot:hover {
+            border-color: #4facfe;
+            background: #f8faff;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(79, 172, 254, 0.2);
+        }
+
+        .slot.selected {
+            border-color: #4facfe;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .slot-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #cbd5e0;
+            border-radius: 50%;
+            margin-right: 15px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .slot.selected .slot-checkbox {
+            background: white;
+            border-color: white;
+        }
+
+        .slot.selected .slot-checkbox::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #4facfe;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .slot-time {
+            font-weight: 600;
+            font-size: 16px;
+            flex: 1;
+        }
+
+        .slot-count {
+            background: rgba(0,0,0,0.1);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .slot.selected .slot-count {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .form-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #4facfe;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 30px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(79, 172, 254, 0.4);
+        }
+
+        .btn-primary:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #64748b;
+            border: 2px solid #e2e8f0;
+        }
+
+        .btn-secondary:hover {
+            background: #e2e8f0;
+            transform: translateY(-1px);
+        }
+
+        .status-message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .status-success {
+            background: #d1fae5;
+            color: #047857;
+            border: 1px solid #a7f3d0;
+        }
+
+        .status-error {
+            background: #fee2e2;
+            color: #dc2626;
+            border: 1px solid #fca5a5;
+        }
+
+        .admin-section {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #e2e8f0;
+        }
+
+        .admin-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #374151;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .participants-grid {
+            display: grid;
+            gap: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .participant-item {
+            display: flex;
+            flex-direction: column;
+            padding: 15px 20px;
+            background: #f8fafc;
+            border-radius: 12px;
+            border-left: 4px solid #4facfe;
+            margin-bottom: 8px;
+        }
+
+        .participant-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .participant-name {
+            font-weight: 700;
+            color: #1e293b;
+            font-size: 16px;
+        }
+
+        .participant-count {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .participant-slots {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 5px;
+        }
+
+        .slot-tag {
+            background: #e2e8f0;
+            color: #475569;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .stats-summary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📅 Mock Interview Booking</h1>
+            <p id="currentDate">26th August 2025</p>
+        </div>
+        
+        <div class="content">
+            <div class="greeting">Hey everyone!</div>
+            <div class="instruction">
+                It's time to book your mock interview slots for tomorrow 📝📚<br>
+                <strong>📋 Select one or more</strong>
+            </div>
+
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="participantName">Your Name *</label>
+                    <input type="text" id="participantName" placeholder="Enter your full name" required>
+                </div>
+            </div>
+
+            <div class="time-slots" id="timeSlots">
+                <div class="slot" data-time="8 am to 9 am">
+                    <div class="slot-checkbox"></div>
+                    <div class="slot-time">8 am to 9 am</div>
+                    <div class="slot-count">0</div>
+                </div>
+                <div class="slot" data-time="11 am to 1 pm">
+                    <div class="slot-checkbox"></div>
+                    <div class="slot-time">11 am to 1 pm</div>
+                    <div class="slot-count">1</div>
+                </div>
+                <div class="slot" data-time="1 pm to 2 pm">
+                    <div class="slot-checkbox"></div>
+                    <div class="slot-time">1 pm to 2 pm</div>
+                    <div class="slot-count">1</div>
+                </div>
+                <div class="slot" data-time="2 pm to 3 pm">
+                    <div class="slot-checkbox"></div>
+                    <div class="slot-time">2 pm to 3 pm</div>
+                    <div class="slot-count">2</div>
+                </div>
+                <div class="slot" data-time="3 pm to 4 pm">
+                    <div class="slot-checkbox"></div>
+                    <div class="slot-time">3 pm to 4 pm</div>
+                    <div class="slot-count">4</div>
+                </div>
+                <div class="slot" data-time="4 pm to 5 pm">
+                    <div class="slot-checkbox"></div>
+                    <div class="slot-time">4 pm to 5 pm</div>
+                    <div class="slot-count">4</div>
+                </div>
+                <div class="slot" data-time="5 pm to 6 pm">
+                    <div class="slot-checkbox"></div>
+                    <div class="slot-time">5 pm to 6 pm</div>
+                    <div class="slot-count">3</div>
+                </div>
+                <div class="slot" data-time="6 pm to 7 pm">
+                    <div class="slot-checkbox"></div>
+                    <div class="slot-time">6 pm to 7 pm</div>
+                    <div class="slot-count">3</div>
+                </div>
+                <div class="slot" data-time="7 pm to 9 pm">
+                    <div class="slot-checkbox"></div>
+                    <div class="slot-time">7 pm to 9 pm</div>
+                    <div class="slot-count">2</div>
+                </div>
+                <div class="slot" data-time="9 pm to 10 pm">
+                    <div class="slot-checkbox"></div>
+                    <div class="slot-time">9 pm to 10 pm</div>
+                    <div class="slot-count">6</div>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-primary" id="registerBtn" disabled>Register</button>
+            </div>
+
+            <div id="statusMessage"></div>
+
+            <div class="admin-section">
+                <div class="admin-title">🎯 Registered Participants</div>
+                
+                <div class="stats-summary" id="statsSummary">
+                    <div class="stat-item">
+                        <span class="stat-number">0</span>
+                        <span class="stat-label">Total Participants</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">0</span>
+                        <span class="stat-label">Total Bookings</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">0</span>
+                        <span class="stat-label">Active Slots</span>
+                    </div>
+                </div>
+                
+                <div class="participants-grid" id="participantsGrid">
+                    <div class="participant-item">
+                        <div class="participant-header">
+                            <div class="participant-name">No registrations yet</div>
+                            <div class="participant-count">0</div>
+                        </div>
+                        <div class="participant-slots">Click register to add participants</div>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" id="exportBtn" style="width: 100%;">
+                    📊 Export to Excel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Application state
+        let participants = loadData();
+        let selectedSlots = new Set();
+
+        // DOM elements
+        const timeSlots = document.querySelectorAll('.slot');
+        const participantNameInput = document.getElementById('participantName');
+        const registerBtn = document.getElementById('registerBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const statusMessage = document.getElementById('statusMessage');
+        const participantsGrid = document.getElementById('participantsGrid');
+        const statsSummary = document.getElementById('statsSummary');
+        const currentDateElement = document.getElementById('currentDate');
+
+        // Time slot selection handling
+        timeSlots.forEach(slot => {
+            slot.addEventListener('click', function() {
+                const timeSlot = this.dataset.time;
+                
+                if (this.classList.contains('selected')) {
+                    this.classList.remove('selected');
+                    selectedSlots.delete(timeSlot);
+                } else {
+                    this.classList.add('selected');
+                    selectedSlots.add(timeSlot);
+                }
+                
+                updateRegisterButton();
+            });
+        });
+
+        // Update register button state
+        function updateRegisterButton() {
+            const hasName = participantNameInput.value.trim().length > 0;
+            const hasSlots = selectedSlots.size > 0;
+            registerBtn.disabled = !hasName || !hasSlots;
+        }
+
+        // Listen to name input changes
+        participantNameInput.addEventListener('input', updateRegisterButton);
+
+        // Register participant
+        registerBtn.addEventListener('click', function() {
+            const name = participantNameInput.value.trim();
+            const slots = Array.from(selectedSlots);
+            
+            if (!name || slots.length === 0) {
+                showStatusMessage('Please enter your name and select at least one time slot.', 'error');
+                return;
+            }
+
+            // Check if participant already exists
+            const existingParticipant = participants.find(p => p.name.toLowerCase() === name.toLowerCase());
+            
+            if (existingParticipant) {
+                // Update existing participant's slots
+                existingParticipant.slots = [...new Set([...existingParticipant.slots, ...slots])];
+                showStatusMessage(`Updated slots for ${name}!`, 'success');
+            } else {
+                // Add new participant
+                participants.push({
+                    name: name,
+                    slots: slots
+                });
+                showStatusMessage(`Successfully registered ${name}!`, 'success');
+            }
+
+            // Update slot counts
+            updateSlotCounts();
+            
+            // Update participants grid
+            updateParticipantsGrid();
+            
+            // Update statistics
+            updateStatistics();
+            
+            // Save data
+            saveData();
+            
+            // Clear form
+            participantNameInput.value = '';
+            selectedSlots.clear();
+            timeSlots.forEach(slot => slot.classList.remove('selected'));
+            updateRegisterButton();
+        });
+
+        // Show status message
+        function showStatusMessage(message, type) {
+            statusMessage.innerHTML = `<div class="status-message status-${type}">${message}</div>`;
+            setTimeout(() => {
+                statusMessage.innerHTML = '';
+            }, 3000);
+        }
+
+        // Update slot counts
+        function updateSlotCounts() {
+            const slotCounts = {};
+            
+            // Initialize counts
+            timeSlots.forEach(slot => {
+                slotCounts[slot.dataset.time] = 0;
+            });
+            
+            // Count participants per slot
+            participants.forEach(participant => {
+                participant.slots.forEach(slot => {
+                    if (slotCounts.hasOwnProperty(slot)) {
+                        slotCounts[slot]++;
+                    }
+                });
+            });
+            
+            // Update UI
+            timeSlots.forEach(slot => {
+                const countElement = slot.querySelector('.slot-count');
+                countElement.textContent = slotCounts[slot.dataset.time];
+            });
+        }
+
+        // Update participants grid
+        function updateParticipantsGrid() {
+            if (participants.length === 0) {
+                participantsGrid.innerHTML = `
+                    <div class="participant-item">
+                        <div class="participant-header">
+                            <div class="participant-name">No registrations yet</div>
+                            <div class="participant-count">0</div>
+                        </div>
+                        <div class="participant-slots">Click register to add participants</div>
+                    </div>
+                `;
+                return;
+            }
+
+            participantsGrid.innerHTML = participants.map(participant => {
+                const slotTags = participant.slots.map(slot => `<span class="slot-tag">${slot}</span>`).join('');
+                return `
+                    <div class="participant-item">
+                        <div class="participant-header">
+                            <div class="participant-name">${participant.name}</div>
+                            <div class="participant-count">${participant.slots.length}</div>
+                        </div>
+                        <div class="participant-slots">${slotTags}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Update statistics summary
+        function updateStatistics() {
+            const totalParticipants = participants.length;
+            const totalBookings = participants.reduce((sum, p) => sum + p.slots.length, 0);
+            const activeSlots = new Set(participants.flatMap(p => p.slots)).size;
+
+            const stats = statsSummary.querySelectorAll('.stat-number');
+            stats[0].textContent = totalParticipants;
+            stats[1].textContent = totalBookings;
+            stats[2].textContent = activeSlots;
+        }
+
+        // Update current date in header
+        function updateCurrentDate() {
+            const today = new Date();
+            const options = { 
+                day: 'numeric', 
+                month: 'long', 
+                year: 'numeric' 
+            };
+            const formattedDate = today.toLocaleDateString('en-GB', options);
+            const day = today.getDate();
+            const suffix = day % 10 === 1 && day !== 11 ? 'st' : 
+                          day % 10 === 2 && day !== 12 ? 'nd' : 
+                          day % 10 === 3 && day !== 13 ? 'rd' : 'th';
+            
+            const finalDate = formattedDate.replace(/^\d+/, day + suffix);
+            currentDateElement.textContent = finalDate;
+        }
+
+        // Export to Excel
+        exportBtn.addEventListener('click', function() {
+            if (participants.length === 0) {
+                showStatusMessage('No participants to export!', 'error');
+                return;
+            }
+
+            // Generate Excel data
+            const excelData = generateExcelData();
+            
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(excelData);
+            
+            // Add some styling to headers
+            const headerRange = XLSX.utils.decode_range(ws['!ref']);
+            for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+                const cellAddress = XLSX.utils.encode_cell({r: 0, c: col});
+                if (!ws[cellAddress]) continue;
+                ws[cellAddress].s = {
+                    font: { bold: true },
+                    fill: { fgColor: { rgb: "4FACFE" } }
+                };
+            }
+            
+            // Auto-fit columns
+            const colWidths = [];
+            for (let col = 0; col <= headerRange.e.c; col++) {
+                let maxWidth = 0;
+                for (let row = 0; row <= headerRange.e.r; row++) {
+                    const cellAddress = XLSX.utils.encode_cell({r: row, c: col});
+                    if (ws[cellAddress] && ws[cellAddress].v) {
+                        maxWidth = Math.max(maxWidth, ws[cellAddress].v.toString().length);
+                    }
+                }
+                colWidths[col] = { wch: Math.min(Math.max(maxWidth + 2, 10), 30) };
+            }
+            ws['!cols'] = colWidths;
+            
+            XLSX.utils.book_append_sheet(wb, ws, "Mock Interview Schedule");
+            
+            // Download file
+            const filename = `Mock_Interview_Schedule_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(wb, filename);
+            
+            showStatusMessage('Excel file exported successfully!', 'success');
+        });
+
+        // Generate Excel data with random pairings
+        function generateExcelData() {
+            // All available time slots (show all options)
+            const allTimeSlots = [
+                "8 am to 9 am", "11 am to 1 pm", "1 pm to 2 pm", "2 pm to 3 pm",
+                "3 pm to 4 pm", "4 pm to 5 pm", "5 pm to 6 pm", "6 pm to 7 pm",
+                "7 pm to 9 pm", "9 pm to 10 pm"
+            ];
+
+            // Create headers with 6 participant columns for manual editing
+            const headers = ['Time Slot (26-08-2025)', 'Count', 'Participant 1', 'Participant 2', 'Participant 3', 'Participant 4', 'Participant 5', 'Participant 6'];
+            const data = [headers];
+
+            // Add data for each time slot (including empty ones)
+            allTimeSlots.forEach(timeSlot => {
+                const slotParticipants = participants.filter(p => p.slots.includes(timeSlot));
+                const count = slotParticipants.length;
+                
+                // Shuffle participants for random pairing
+                const shuffledParticipants = [...slotParticipants].sort(() => Math.random() - 0.5);
+                
+                const row = [timeSlot, count];
+                
+                // Add participants to row (6 columns for manual editing)
+                for (let i = 0; i < 6; i++) {
+                    if (i < shuffledParticipants.length) {
+                        row.push(shuffledParticipants[i].name);
+                    } else {
+                        row.push(''); // Empty cell for manual entry
+                    }
+                }
+                
+                data.push(row);
+            });
+
+            // Add total count row
+            const totalRow = ['Total Count', participants.length, '', '', '', '', '', ''];
+            data.push(totalRow);
+
+            return data;
+        }
+
+        // Data persistence functions
+        function saveData() {
+            const data = {
+                participants: participants,
+                timestamp: new Date().toISOString()
+            };
+            // Store in memory (session-based storage)
+            window.mockInterviewData = data;
+            
+            // Also try to save to sessionStorage if available (will work in real browsers)
+            try {
+                if (typeof(Storage) !== "undefined") {
+                    sessionStorage.setItem('mockInterviewData', JSON.stringify(data));
+                }
+            } catch (e) {
+                // Silently fail if storage is not available
+            }
+        }
+
+        function loadData() {
+            // Try to load from memory first
+            if (window.mockInterviewData) {
+                return window.mockInterviewData.participants || [];
+            }
+            
+            // Try to load from sessionStorage if available
+            try {
+                if (typeof(Storage) !== "undefined") {
+                    const stored = sessionStorage.getItem('mockInterviewData');
+                    if (stored) {
+                        const data = JSON.parse(stored);
+                        return data.participants || [];
+                    }
+                }
+            } catch (e) {
+                // Silently fail if storage is not available
+            }
+            
+            return [];
+        }
+
+        // Initialize
+        updateCurrentDate();
+        updateParticipantsGrid();
+        updateSlotCounts();
+        updateStatistics();
+    </script>
+</body>
+</html>
