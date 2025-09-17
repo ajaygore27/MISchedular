@@ -550,7 +550,7 @@
             <div class="auth-section" id="authSection">
                 <button class="auth-btn" id="loginBtn">Sign in with Google</button>
             </div>
-            <h1>📅 Mock Interview Scheduler</h1>
+            <h1>📅 Confident Scrum master<br>Mock Interview Scheduler</h1>
             <p id="currentDate">Loading...</p>
         </div>
         
@@ -626,6 +626,10 @@
                             <div class="export-desc">Create and share via WhatsApp</div>
                         </div>
                     </div>
+                    <div class="form-section" id="leaderboardSection">
+                        <div class="admin-title" style="margin-top: 0;">🏆 Top 5 (Last 7 Days)</div>
+                        <div id="leaderboardList" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;"></div>
+                    </div>
                     <div class="button-group" style="margin-top: 10px;">
                         <button class="btn btn-danger" id="resetAllBtn">Reset All Slots (Delete All)</button>
                     </div>
@@ -667,6 +671,17 @@
             messagingSenderId: "433708237214",
             measurementId: "G-6092TDWEMX"
         };
+
+        // const firebaseConfig = {
+        // apiKey: "AIzaSyD7mdg50lOcmNXxReoL-7vrGFx8OdSN254",
+        // authDomain: "testapp-2be03.firebaseapp.com",
+        // projectId: "testapp-2be03",
+        // storageBucket: "testapp-2be03.firebasestorage.app",
+        // messagingSenderId: "504232127662",
+        // appId: "1:504232127662:web:f825178b7586d4d4e4113f",
+        // measurementId: "G-6ZDR3WF1MC"
+        // };
+
 
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
@@ -737,6 +752,7 @@
             renderTimeSlots();
             updateParticipantsTable();
             updateStatistics();
+            updateLeaderboard7Days();
         });
 
         loginBtn.addEventListener('click', () => {
@@ -863,12 +879,30 @@
                 
                 if (existingParticipant) {
                     // Update existing participant's slots
-                    const updatedSlots = [...new Set([...existingParticipant.slots, ...slots])];
-                    await db.collection('participants').doc(existingParticipant.id).update({
-                        slots: updatedSlots,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                    showStatusMessage(`Updated slots for ${name}!`, 'success');
+                    // const updatedSlots = [...new Set([...existingParticipant.slots, ...slots])];
+                    // await db.collection('participants').doc(existingParticipant.id).update({
+                    //     slots: updatedSlots,
+                    //     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    // });
+                    // showStatusMessage(`Updated slots for ${name}!`, 'success');
+                     // Prevent duplicate entries for the same time slot
+                     const duplicateSlots = slots.filter(s => Array.isArray(existingParticipant.slots) && existingParticipant.slots.includes(s));
+                    const newOnlySlots = slots.filter(s => !Array.isArray(existingParticipant.slots) || !existingParticipant.slots.includes(s));
+
+                    if (duplicateSlots.length > 0 && newOnlySlots.length === 0) {
+                        showStatusMessage(`Entry already exists for ${name} in: ${duplicateSlots.join(', ')}`, 'error');
+                        return;
+                    }
+
+                    if (newOnlySlots.length > 0) {
+                        const updatedSlots = [...new Set([...(existingParticipant.slots || []), ...newOnlySlots])];
+                        await db.collection('participants').doc(existingParticipant.id).update({
+                            slots: updatedSlots,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        const info = duplicateSlots.length > 0 ? ` (skipped existing: ${duplicateSlots.join(', ')})` : '';
+                        showStatusMessage(`Updated slots for ${name}!${info}`, 'success');
+                    }
                 } else {
                     // Add new participant
                     const docRef = await db.collection('participants').add({
@@ -1065,6 +1099,7 @@
                 updateSlotCounts();
                 updateParticipantsTable();
                 updateStatistics();
+                updateLeaderboard7Days();
                 showStatusMessage('All registrations have been reset.', 'success');
             } catch (error) {
                 console.error('Error resetting participants:', error);
@@ -1260,7 +1295,33 @@
             
             showStatusMessage('PDF file exported successfully!', 'success');
         }
-
+        function updateLeaderboard7Days() {
+            const list = document.getElementById('leaderboardList');
+            if (!list) return;
+            const now = Date.now();
+            const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+            const recent = participants.filter(p => {
+                const ts = p.updatedAt?.toDate ? p.updatedAt.toDate() : (p.createdAt?.toDate ? p.createdAt.toDate() : null);
+                return ts ? (now - ts.getTime() <= sevenDaysMs) : false;
+            });
+            const ranked = recent
+                .map(p => ({ name: p.name, email: p.email || '', count: Array.isArray(p.slots) ? p.slots.length : 0 }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 5);
+            if (ranked.length === 0) {
+                list.innerHTML = `<div style=\"color:#64748b;\">No activity in the last 7 days</div>`;
+                return;
+            }
+            list.innerHTML = ranked.map((r, idx) => `
+                <div class=\"stat-card\" style=\"display:flex; align-items:center; gap:12px;\">
+                    <div style=\"font-weight:800; color:#4facfe; min-width:24px; text-align:center;\">${idx + 1}</div>
+                    <div style=\"flex:1;\">
+                        <div style=\"font-weight:600; color:#111827;\">${r.name}</div>
+                        <div style=\"font-size:12px; color:#64748b;\">Bookings: ${r.count}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
         function generateExportData() {
             const headers = ['Time Slot', 'Count'];
             for (let i = 1; i <= MAX_PARTICIPANTS_PER_ROW; i++) {
@@ -1278,8 +1339,12 @@
                 
                 for (let i = 0; i < MAX_PARTICIPANTS_PER_ROW; i++) {
                     if (i < shuffledParticipants.length) {
-                        row.push(shuffledParticipants[i].name);
+                        const p = shuffledParticipants[i];
+                        const ts = p.createdAt?.toDate ? p.createdAt.toDate() : (p.updatedAt?.toDate ? p.updatedAt.toDate() : null);
+                        row.push(p.name);
+                        row.push(ts ? formatDateTime(ts) : '');
                     } else {
+                        row.push('');
                         row.push('');
                     }
                 }
@@ -1288,10 +1353,23 @@
             });
 
             const totalRow = ['Total Count', participants.length];
-            for (let i = 0; i < MAX_PARTICIPANTS_PER_ROW; i++) totalRow.push('');
+            for (let i = 0; i < MAX_PARTICIPANTS_PER_ROW * 2; i++) totalRow.push('');
             data.push(totalRow);
 
             return data;
+        }
+
+        function formatDateTime(dateObj) {
+            try {
+                const yyyy = dateObj.getFullYear();
+                const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+                const dd = String(dateObj.getDate()).padStart(2, '0');
+                const hh = String(dateObj.getHours()).padStart(2, '0');
+                const mi = String(dateObj.getMinutes()).padStart(2, '0');
+                return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+            } catch {
+                return '';
+            }
         }
 
         // Utility functions
