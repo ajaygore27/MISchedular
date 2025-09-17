@@ -1,6 +1,6 @@
 {
   "projects": {
-    "default": "mi-scheduler-43feb",
+    "default": "testapp-2be03",
     "test": "testapp-2be03"
   },
   "targets": {},

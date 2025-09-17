@@ -604,42 +604,6 @@
                         <!-- Stats will be populated dynamically -->
                     </div>
                     
-                    <div class="form-section" id="autoClearSection">
-                        <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
-                            <label style="font-weight: 700; color: #374151;">Auto Clear Registrations</label>
-                            <label style="display:flex; align-items:center; gap:8px;">
-                                <input type="checkbox" id="autoClearToggle">
-                                <span>Enable</span>
-                            </label>
-                            <input type="time" id="autoClearTime" style="max-width: 160px;" disabled>
-                            <span id="autoClearStatus" style="font-weight:600; color:#64748b;">Disabled</span>
-                        </div>
-                        <div style="font-size: 12px; color: #64748b; margin-top: 6px;">
-                            When enabled, all registrations will be cleared automatically at the set time.
-                        </div>
-                    </div>
-
-                    <!-- Auto Clear Time Modal -->
-                    <div id="autoClearModal" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); align-items: center; justify-content: center; z-index: 9999;">
-                        <div style="background:#fff; border-radius:12px; padding:20px; width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
-                            <div style="font-weight:700; color:#111827; margin-bottom:10px;">Set Auto-Clear Time</div>
-                            <div style="display:flex; gap:10px; align-items:center; margin-bottom: 16px;">
-                                <div style="flex:1;">
-                                    <label style="font-size:12px; color:#374151;">Hour (00-23)</label>
-                                    <select id="autoClearHour" style="width:100%; padding:10px; border:2px solid #e2e8f0; border-radius:8px;"></select>
-                                </div>
-                                <div style="flex:1;">
-                                    <label style="font-size:12px; color:#374151;">Minute (00-59)</label>
-                                    <select id="autoClearMinute" style="width:100%; padding:10px; border:2px solid #e2e8f0; border-radius:8px;"></select>
-                                </div>
-                            </div>
-                            <div style="display:flex; gap:10px; justify-content:flex-end;">
-                                <button id="autoClearCancel" class="btn btn-secondary" style="min-width:auto; padding:8px 14px;">Cancel</button>
-                                <button id="autoClearSave" class="btn btn-primary" style="min-width:auto; padding:8px 14px;">Save</button>
-                            </div>
-                        </div>
-                    </div>
-                    
                     <div class="export-options">
                         <div class="export-card" id="excelExport">
                             <div class="export-icon">📊</div>
@@ -662,7 +626,6 @@
                             <div class="export-desc">Create and share via WhatsApp</div>
                         </div>
                     </div>
-                    
                     <div class="form-section" id="leaderboardSection">
                         <div class="admin-title" style="margin-top: 0;">🏆 Top 5 (Last 7 Days)</div>
                         <div id="leaderboardList" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;"></div>
@@ -708,6 +671,7 @@
         //     messagingSenderId: "433708237214",
         //     measurementId: "G-6092TDWEMX"
         // };
+
         const firebaseConfig = {
         apiKey: "AIzaSyD7mdg50lOcmNXxReoL-7vrGFx8OdSN254",
         authDomain: "testapp-2be03.firebaseapp.com",
@@ -717,6 +681,7 @@
         appId: "1:504232127662:web:f825178b7586d4d4e4113f",
         measurementId: "G-6ZDR3WF1MC"
         };
+
 
         // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
@@ -754,15 +719,6 @@
         const statusMessage = document.getElementById('statusMessage');
         const currentDateElement = document.getElementById('currentDate');
         const loadingElement = document.getElementById('loading');
-        const autoClearToggle = document.getElementById('autoClearToggle');
-        const autoClearTime = document.getElementById('autoClearTime');
-        const autoClearStatus = document.getElementById('autoClearStatus');
-        const autoClearModal = document.getElementById('autoClearModal');
-        const autoClearHour = document.getElementById('autoClearHour');
-        const autoClearMinute = document.getElementById('autoClearMinute');
-        const autoClearCancel = document.getElementById('autoClearCancel');
-        const autoClearSave = document.getElementById('autoClearSave');
-        let autoClearInterval = null;
 
         // Tab functionality
         document.querySelectorAll('.tab').forEach(tab => {
@@ -777,20 +733,6 @@
         });
 
         // Authentication
-        // Complete any pending redirect-based sign-in with surfaced UI errors
-        auth.getRedirectResult()
-            .then(cred => {
-                if (cred && cred.user) {
-                    console.log('Redirect sign-in success:', cred.user.email || cred.user.uid);
-                }
-            })
-            .catch(e => {
-                const code = e && e.code ? e.code : 'unknown';
-                const msg = e && e.message ? e.message : JSON.stringify(e);
-                console.warn('Redirect sign-in failed:', code, msg);
-                showStatusMessage(`Sign-in error: ${code}`, 'error');
-            });
-
         auth.onAuthStateChanged(async (user) => {
             // If no user, sign in anonymously to allow booking without explicit sign-in
             if (!user) {
@@ -804,36 +746,19 @@
 
             // We have a user (could be anonymous or Google)
             currentUser = user;
-            // Normalize email and re-check admin status; keep admin tab visible while checking
-            const userEmail = user && user.email ? user.email.toLowerCase() : '';
-            isAdmin = user && !user.isAnonymous ? await checkAdminStatus(userEmail) : false;
+            isAdmin = user && !user.isAnonymous ? await checkAdminStatus(user.email) : false;
             updateAuthUI();
             await loadData();
             renderTimeSlots();
             updateParticipantsTable();
             updateStatistics();
             updateLeaderboard7Days();
-            // Load auto-clear settings only for admins
-            if (isAdmin) {
-                setupAutoClearListeners();
-                await loadAutoClearSettings();
-            }
         });
 
-        async function signInAdmin() {
-            try {
-                const provider = new firebase.auth.GoogleAuthProvider();
-                // Force redirect flow to avoid popup/domain quirks on Hosting
-                await auth.signInWithRedirect(provider);
-            } catch (err) {
-                const code = err && err.code ? err.code : 'unknown';
-                const msg = err && err.message ? err.message : JSON.stringify(err);
-                console.error('signInWithRedirect error:', code, msg);
-                showStatusMessage(`Sign-in error: ${code}`, 'error');
-            }
-        }
-
-        loginBtn.addEventListener('click', signInAdmin);
+        loginBtn.addEventListener('click', () => {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider);
+        });
 
         function updateAuthUI() {
             const adminTab = document.querySelector('[data-tab="admin"]');
@@ -844,7 +769,10 @@
                     authSection.innerHTML = `
                         <button class="auth-btn" id="loginBtn">Admin Sign In</button>
                     `;
-                    document.getElementById('loginBtn').addEventListener('click', signInAdmin);
+                    document.getElementById('loginBtn').addEventListener('click', () => {
+                        const provider = new firebase.auth.GoogleAuthProvider();
+                        auth.signInWithPopup(provider);
+                    });
                 } else {
                     // Signed-in (Google)
                     authSection.innerHTML = `
@@ -863,15 +791,17 @@
                 authSection.innerHTML = `
                     <button class="auth-btn" id="loginBtn">Admin Sign In</button>
                 `;
-                document.getElementById('loginBtn').addEventListener('click', signInAdmin);
+                document.getElementById('loginBtn').addEventListener('click', () => {
+                    const provider = new firebase.auth.GoogleAuthProvider();
+                    auth.signInWithPopup(provider);
+                });
                 adminTab.style.display = 'none';
             }
         }
 
         async function checkAdminStatus(email) {
             try {
-                const emailKey = (email || '').toLowerCase();
-                const adminDoc = await db.collection('admins').doc(emailKey).get();
+                const adminDoc = await db.collection('admins').doc(email).get();
                 return adminDoc.exists;
             } catch (error) {
                 console.error('Error checking admin status:', error);
@@ -948,8 +878,15 @@
                 const existingParticipant = participants.find(p => p.name.toLowerCase() === name.toLowerCase());
                 
                 if (existingParticipant) {
-                    // Prevent duplicate entries for the same time slot
-                    const duplicateSlots = slots.filter(s => Array.isArray(existingParticipant.slots) && existingParticipant.slots.includes(s));
+                    // Update existing participant's slots
+                    // const updatedSlots = [...new Set([...existingParticipant.slots, ...slots])];
+                    // await db.collection('participants').doc(existingParticipant.id).update({
+                    //     slots: updatedSlots,
+                    //     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    // });
+                    // showStatusMessage(`Updated slots for ${name}!`, 'success');
+                     // Prevent duplicate entries for the same time slot
+                     const duplicateSlots = slots.filter(s => Array.isArray(existingParticipant.slots) && existingParticipant.slots.includes(s));
                     const newOnlySlots = slots.filter(s => !Array.isArray(existingParticipant.slots) || !existingParticipant.slots.includes(s));
 
                     if (duplicateSlots.length > 0 && newOnlySlots.length === 0) {
@@ -1358,7 +1295,6 @@
             
             showStatusMessage('PDF file exported successfully!', 'success');
         }
-
         function updateLeaderboard7Days() {
             const list = document.getElementById('leaderboardList');
             if (!list) return;
@@ -1386,12 +1322,10 @@
                 </div>
             `).join('');
         }
-
         function generateExportData() {
             const headers = ['Time Slot', 'Count'];
             for (let i = 1; i <= MAX_PARTICIPANTS_PER_ROW; i++) {
                 headers.push(`Participant ${i}`);
-                headers.push('Timestamp');
             }
             const data = [headers];
 
@@ -1469,222 +1403,6 @@
 
         // Initialize
         updateCurrentDate();
-        
-        // Auto-clear functionality
-        function setupAutoClearListeners() {
-            if (!autoClearToggle || !autoClearTime) return;
-
-            // populate hour/minute selects once
-            if (autoClearHour && autoClearHour.options.length === 0) {
-                for (let h = 0; h <= 23; h++) {
-                    const opt = document.createElement('option');
-                    opt.value = String(h).padStart(2, '0');
-                    opt.textContent = String(h).padStart(2, '0');
-                    autoClearHour.appendChild(opt);
-                }
-            }
-            if (autoClearMinute && autoClearMinute.options.length === 0) {
-                for (let m = 0; m <= 59; m++) {
-                    const opt = document.createElement('option');
-                    opt.value = String(m).padStart(2, '0');
-                    opt.textContent = String(m).padStart(2, '0');
-                    autoClearMinute.appendChild(opt);
-                }
-            }
-
-            autoClearToggle.addEventListener('change', async function() {
-                const enabled = this.checked;
-                autoClearTime.disabled = !enabled;
-                
-                if (enabled) {
-                    if (autoClearTime.value) {
-                        await saveAutoClearSettings(true, autoClearTime.value);
-                        startAutoClearTimer();
-                        updateAutoClearStatus();
-                    } else {
-                        // Open native time picker if supported; otherwise focus
-                        try { if (typeof autoClearTime.showPicker === 'function') { autoClearTime.showPicker(); } } catch {}
-                        autoClearTime.focus();
-                    }
-                } else {
-                    await saveAutoClearSettings(false, '');
-                    stopAutoClearTimer();
-                    updateAutoClearStatus();
-                }
-            });
-
-            // Validate and save when time changes
-            autoClearTime.addEventListener('change', async function() {
-                if (!autoClearToggle.checked) return;
-                const val = (this.value || '').trim();
-                if (!val) {
-                    updateAutoClearStatus();
-                    return;
-                }
-                // Enforce HH:MM (00-23:00-59)
-                const isValid = /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(val);
-                if (!isValid) {
-                    alert('Please choose a valid time (HH:MM). Minutes cannot be more than 59.');
-                    this.value = '';
-                    updateAutoClearStatus();
-                    return;
-                }
-                await saveAutoClearSettings(true, val);
-                startAutoClearTimer();
-                updateAutoClearStatus();
-            });
-
-            if (autoClearCancel) {
-                autoClearCancel.addEventListener('click', () => closeAutoClearModal());
-            }
-            if (autoClearSave) {
-                autoClearSave.addEventListener('click', async () => {
-                    const h = autoClearHour ? autoClearHour.value : '';
-                    const m = autoClearMinute ? autoClearMinute.value : '';
-                    if (!/^(?:[01]\d|2[0-3])$/.test(h) || !/^[0-5]\d$/.test(m)) {
-                        showStatusMessage('Please select a valid time (HH:MM).', 'error');
-                        return;
-                    }
-                    const timeVal = `${h}:${m}`;
-                    autoClearTime.value = timeVal;
-                    await saveAutoClearSettings(true, timeVal);
-                    startAutoClearTimer();
-                    updateAutoClearStatus();
-                    closeAutoClearModal();
-                });
-            }
-        }
-
-        function openAutoClearModalFromCurrent() {
-            try {
-                const [h, m] = (autoClearTime.value || '00:00').split(':');
-                if (autoClearHour && autoClearMinute) {
-                    autoClearHour.value = String(h).padStart(2, '0');
-                    autoClearMinute.value = String(m).padStart(2, '0');
-                }
-            } catch {}
-            if (autoClearModal) {
-                autoClearModal.style.display = 'flex';
-            }
-        }
-
-        function closeAutoClearModal() {
-            if (autoClearModal) {
-                autoClearModal.style.display = 'none';
-            }
-        }
-
-        async function saveAutoClearSettings(enabled, time) {
-            try {
-                await db.collection('settings').doc('autoClear').set({
-                    enabled: enabled,
-                    time: time,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-            } catch (error) {
-                console.error('Error saving auto-clear settings:', error);
-                showStatusMessage('Error saving auto-clear settings.', 'error');
-            }
-        }
-
-        async function loadAutoClearSettings() {
-            try {
-                const doc = await db.collection('settings').doc('autoClear').get();
-                if (doc.exists) {
-                    const data = doc.data();
-                    autoClearToggle.checked = data.enabled || false;
-                    autoClearTime.value = data.time || '';
-                    autoClearTime.disabled = !data.enabled;
-                    
-                    if (data.enabled && data.time) {
-                        startAutoClearTimer();
-                    }
-                }
-                updateAutoClearStatus();
-            } catch (error) {
-                console.error('Error loading auto-clear settings:', error);
-            }
-        }
-
-        function startAutoClearTimer() {
-            stopAutoClearTimer();
-            if (!autoClearTime.value) return;
-            autoClearInterval = setInterval(checkAutoClearTime, 60000);
-            checkAutoClearTime();
-        }
-
-        function stopAutoClearTimer() {
-            if (autoClearInterval) {
-                clearInterval(autoClearInterval);
-                autoClearInterval = null;
-            }
-        }
-
-        async function checkAutoClearTime() {
-            if (!autoClearToggle.checked || !autoClearTime.value) return;
-            const now = new Date();
-            const currentTime = now.getHours().toString().padStart(2, '0') + ':' + 
-                               now.getMinutes().toString().padStart(2, '0');
-            if (currentTime === autoClearTime.value) {
-                console.log('Auto-clear triggered at', currentTime);
-                await performAutoClear();
-            }
-        }
-
-        async function performAutoClear() {
-            if (!isAdmin || !currentUser || currentUser.isAnonymous) {
-                console.error('Unauthorized auto-clear attempt blocked');
-                stopAutoClearTimer();
-                return;
-            }
-
-            try {
-                console.log(`Auto-clear initiated by admin: ${currentUser.email}`);
-                showStatusMessage('Auto-clear triggered - clearing all data...', 'success');
-                const snapshot = await db.collection('participants').get();
-                const batch = db.batch();
-                snapshot.forEach(doc => batch.delete(doc.ref));
-                batch.set(db.collection('logs').doc(), {
-                    action: 'auto_clear',
-                    adminEmail: currentUser.email,
-                    participantCount: snapshot.size,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                await batch.commit();
-                await loadData();
-                updateSlotCounts();
-                updateParticipantsTable();
-                updateStatistics();
-                console.log('Auto-clear completed successfully');
-                showStatusMessage('Auto-clear completed - all registrations have been cleared.', 'success');
-            } catch (error) {
-                console.error('Error during auto-clear:', error);
-                showStatusMessage('Error during auto-clear. Please check manually.', 'error');
-            }
-        }
-
-        function updateAutoClearStatus() {
-            if (!autoClearToggle) return;
-            if (!autoClearToggle.checked) {
-                autoClearStatus.textContent = 'Disabled';
-                autoClearStatus.style.color = '#64748b';
-            } else if (!autoClearTime.value) {
-                autoClearStatus.textContent = 'Set Time';
-                autoClearStatus.style.color = '#f59e0b';
-            } else {
-                const timeStr = formatTime12Hour(autoClearTime.value);
-                autoClearStatus.textContent = `Active (${timeStr})`;
-                autoClearStatus.style.color = '#10b981';
-            }
-        }
-
-        function formatTime12Hour(time24) {
-            const [hours, minutes] = time24.split(':');
-            const hour = parseInt(hours, 10);
-            const ampm = hour >= 12 ? 'PM' : 'AM';
-            const hour12 = hour % 12 || 12;
-            return `${hour12}:${minutes} ${ampm}`;
-        }
     </script>
 </body>
 </html>

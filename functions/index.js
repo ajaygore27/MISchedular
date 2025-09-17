@@ -1,0 +1,1 @@
+// Intentionally left empty: Cloud Functions removed for free plan
