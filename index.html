@@ -1458,11 +1458,11 @@
                 for (let i = 0; i < MAX_PARTICIPANTS_PER_ROW; i++) {
                     if (i < shuffledParticipants.length) {
                         const p = shuffledParticipants[i];
-                        const ts = p.createdAt?.toDate ? p.createdAt.toDate() : (p.updatedAt?.toDate ? p.updatedAt.toDate() : null);
+                        //const ts = p.createdAt?.toDate ? p.createdAt.toDate() : (p.updatedAt?.toDate ? p.updatedAt.toDate() : null);
                         row.push(p.name);
-                        row.push(ts ? formatDateTime(ts) : '');
+                        //row.push(ts ? formatDateTime(ts) : '');
                     } else {
-                        row.push('');
+                        //row.push('');
                         row.push('');
                     }
                 }
@@ -1471,7 +1471,7 @@
             });
 
             const totalRow = ['Total Count', participants.length];
-            for (let i = 0; i < MAX_PARTICIPANTS_PER_ROW * 2; i++) totalRow.push('');
+            for (let i = 0; i < MAX_PARTICIPANTS_PER_ROW; i++) totalRow.push('');
             data.push(totalRow);
 
             return data;
