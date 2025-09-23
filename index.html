@@ -443,6 +443,12 @@
             display: inline-block;
         }
 
+        .timestamp {
+            font-size: 11px;
+            color: #64748b;
+            white-space: nowrap;
+        }
+
         .export-options {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -502,6 +508,54 @@
             margin: 0 auto 10px;
         }
 
+         /* New styles for booking page table */
+         .bookings-table-section {
+            margin-top: 40px;
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .bookings-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #374151;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .bookings-table {
+            width: 100%;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .bookings-table th,
+        .bookings-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .bookings-table th {
+            background: #4facfe;
+            color: white;
+            font-weight: 600;
+        }
+
+        .bookings-table tr:hover {
+            background: #f8fafc;
+        }
+
+        .no-bookings {
+            text-align: center;
+            color: #64748b;
+            padding: 20px;
+            font-style: italic;
+        }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -541,7 +595,18 @@
             .export-options {
                 grid-template-columns: 1fr;
             }
+
+            
+            .bookings-table {
+                font-size: 14px;
+            }
+            
+            .bookings-table th,
+            .bookings-table td {
+                padding: 8px 10px;
+            }
         }
+        
     </style>
 </head>
 <body>
@@ -593,6 +658,23 @@
                 </div>
 
                 <div id="statusMessage"></div>
+
+                <!-- New Bookings Table Section -->
+                <div class="bookings-table-section">
+                    <div class="bookings-title">📋 Currently Booked Slots</div>
+                    <table class="bookings-table" id="bookingsTable">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Name</th>
+                                <th>Slots</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bookingsTableBody">
+                            <!-- Bookings will be populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <!-- Admin Tab -->
@@ -627,7 +709,7 @@
                         </div>
                     </div>
                     <div class="form-section" id="leaderboardSection">
-                        <div class="admin-title" style="margin-top: 0;">🏆 Top 5 (Last 7 Days)</div>
+                        <div class="admin-title" style="margin-top: 0;">🏆 Top 5 </div>
                         <div id="leaderboardList" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;"></div>
                     </div>
                     <div class="button-group" style="margin-top: 10px;">
@@ -638,6 +720,7 @@
                         <table class="participants-table" id="participantsTable">
                             <thead>
                                 <tr>
+                                    <th>Timestamp</th>
                                     <th>Name</th>
                                     <th>Email</th>
                                     <th>Phone</th>
@@ -719,6 +802,7 @@
         const statusMessage = document.getElementById('statusMessage');
         const currentDateElement = document.getElementById('currentDate');
         const loadingElement = document.getElementById('loading');
+        const bookingsTableBody = document.getElementById('bookingsTableBody');
 
         // Tab functionality
         document.querySelectorAll('.tab').forEach(tab => {
@@ -751,8 +835,10 @@
             await loadData();
             renderTimeSlots();
             updateParticipantsTable();
+            updateBookingsTable();
             updateStatistics();
             updateLeaderboard7Days();
+            
         });
 
         loginBtn.addEventListener('click', () => {
@@ -919,6 +1005,7 @@
                 await loadData();
                 updateSlotCounts();
                 updateParticipantsTable();
+                updateBookingsTable();
                 updateStatistics();
                 
                 // Clear form
@@ -987,14 +1074,40 @@
             });
         }
 
-        // Update participants table
+        // Update bookings table on booking page
+        function updateBookingsTable() {
+            if (participants.length === 0) {
+                bookingsTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="no-bookings">No slots booked yet</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            bookingsTableBody.innerHTML = participants.map(participant => {
+                const timestamp = participant.createdAt?.toDate ? participant.createdAt.toDate() : null;
+                const formattedTimestamp = timestamp ? formatDateTime(timestamp) : 'N/A';
+                const slotTags = participant.slots.map(slot => `<span class="slot-tag">${slot}</span>`).join('');
+                
+                return `
+                    <tr>
+                        <td><span class="timestamp">${formattedTimestamp}</span></td>
+                        <td>${participant.name}</td>
+                        <td>${slotTags}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Update participants table (admin page)
         function updateParticipantsTable() {
             const tbody = document.getElementById('participantsTableBody');
             
             if (participants.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="5" style="text-align: center; color: #64748b;">No participants registered yet</td>
+                        <td colspan="6" style="text-align: center; color: #64748b;">No participants registered yet</td>
                     </tr>
                 `;
                 return;
@@ -1002,8 +1115,12 @@
 
             tbody.innerHTML = participants.map(participant => {
                 const slotTags = participant.slots.map(slot => `<span class=\"slot-tag\">${slot}</span>`).join('');
+                const timestamp = participant.createdAt?.toDate ? participant.createdAt.toDate() : null;
+                const formattedTimestamp = timestamp ? formatDateTime(timestamp) : 'N/A';
+                
                 return `
                     <tr>
+                        <td><span class="timestamp">${formattedTimestamp}</span></td>
                         <td>${participant.name}</td>
                         <td>${participant.email || '-'}</td>
                         <td>${participant.phone || '-'}</td>
@@ -1070,6 +1187,7 @@
                 await loadData();
                 updateSlotCounts();
                 updateParticipantsTable();
+                updateBookingsTable();
                 updateStatistics();
                 showStatusMessage('Participant deleted successfully!', 'success');
             } catch (error) {
@@ -1340,11 +1458,11 @@
                 for (let i = 0; i < MAX_PARTICIPANTS_PER_ROW; i++) {
                     if (i < shuffledParticipants.length) {
                         const p = shuffledParticipants[i];
-                        const ts = p.createdAt?.toDate ? p.createdAt.toDate() : (p.updatedAt?.toDate ? p.updatedAt.toDate() : null);
+                        //const ts = p.createdAt?.toDate ? p.createdAt.toDate() : (p.updatedAt?.toDate ? p.updatedAt.toDate() : null);
                         row.push(p.name);
-                        row.push(ts ? formatDateTime(ts) : '');
+                        //row.push(ts ? formatDateTime(ts) : '');
                     } else {
-                        row.push('');
+                        //row.push('');
                         row.push('');
                     }
                 }
@@ -1353,7 +1471,7 @@
             });
 
             const totalRow = ['Total Count', participants.length];
-            for (let i = 0; i < MAX_PARTICIPANTS_PER_ROW * 2; i++) totalRow.push('');
+            for (let i = 0; i < MAX_PARTICIPANTS_PER_ROW; i++) totalRow.push('');
             data.push(totalRow);
 
             return data;
