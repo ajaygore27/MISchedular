@@ -508,6 +508,54 @@
             margin: 0 auto 10px;
         }
 
+         /* New styles for booking page table */
+         .bookings-table-section {
+            margin-top: 40px;
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .bookings-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #374151;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .bookings-table {
+            width: 100%;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .bookings-table th,
+        .bookings-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .bookings-table th {
+            background: #4facfe;
+            color: white;
+            font-weight: 600;
+        }
+
+        .bookings-table tr:hover {
+            background: #f8fafc;
+        }
+
+        .no-bookings {
+            text-align: center;
+            color: #64748b;
+            padding: 20px;
+            font-style: italic;
+        }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -547,7 +595,18 @@
             .export-options {
                 grid-template-columns: 1fr;
             }
+
+            
+            .bookings-table {
+                font-size: 14px;
+            }
+            
+            .bookings-table th,
+            .bookings-table td {
+                padding: 8px 10px;
+            }
         }
+        
     </style>
 </head>
 <body>
@@ -574,6 +633,25 @@
                     <strong>📋 Select one or more time slots</strong>
                 </div>
 
+                <div class="form-section">
+                    <div class="form-group">
+                        <label for="participantName">Your Name *</label>
+                        <input type="text" id="participantName" placeholder="Enter your full name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="participantEmail">Email Address</label>
+                        <input type="email" id="participantEmail" placeholder="Enter your email">
+                    </div>
+                    <div class="form-group">
+                        <label for="participantPhone">Phone Number</label>
+                        <input type="tel" id="participantPhone" placeholder="Enter your phone number">
+                    </div>
+                </div>
+
+                <div class="time-slots" id="timeSlots">
+                    <!-- Time slots will be populated dynamically -->
+                </div>
+
                 <div class="button-group">
                     <button class="btn btn-primary" id="registerBtn" disabled>Register for Slots</button>
                     <button class="btn btn-secondary" id="clearBtn">Clear Selection</button>
@@ -581,19 +659,20 @@
 
                 <div id="statusMessage"></div>
 
-                <div class="participants-table-container">
-                    <table class="participants-table" id="participantsTable">
+                <!-- New Bookings Table Section -->
+                <div class="bookings-table-section">
+                    <div class="bookings-title">📋 Currently Booked Slots</div>
+                    <table class="bookings-table" id="bookingsTable">
                         <thead>
                             <tr>
                                 <th>Timestamp</th>
                                 <th>Name</th>
-                                 <!--<th>Email</th>-->
-                                 <!--<th>Phone</th>-->
                                 <th>Slots</th>
-                                <!--<th>Actions</th>-->
                             </tr>
                         </thead>
-                       
+                        <tbody id="bookingsTableBody">
+                            <!-- Bookings will be populated dynamically -->
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -723,6 +802,7 @@
         const statusMessage = document.getElementById('statusMessage');
         const currentDateElement = document.getElementById('currentDate');
         const loadingElement = document.getElementById('loading');
+        const bookingsTableBody = document.getElementById('bookingsTableBody');
 
         // Tab functionality
         document.querySelectorAll('.tab').forEach(tab => {
@@ -755,8 +835,10 @@
             await loadData();
             renderTimeSlots();
             updateParticipantsTable();
+            updateBookingsTable();
             updateStatistics();
             updateLeaderboard7Days();
+            
         });
 
         loginBtn.addEventListener('click', () => {
@@ -923,6 +1005,7 @@
                 await loadData();
                 updateSlotCounts();
                 updateParticipantsTable();
+                updateBookingsTable();
                 updateStatistics();
                 
                 // Clear form
@@ -991,7 +1074,33 @@
             });
         }
 
-        // Update participants table
+        // Update bookings table on booking page
+        function updateBookingsTable() {
+            if (participants.length === 0) {
+                bookingsTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="no-bookings">No slots booked yet</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            bookingsTableBody.innerHTML = participants.map(participant => {
+                const timestamp = participant.createdAt?.toDate ? participant.createdAt.toDate() : null;
+                const formattedTimestamp = timestamp ? formatDateTime(timestamp) : 'N/A';
+                const slotTags = participant.slots.map(slot => `<span class="slot-tag">${slot}</span>`).join('');
+                
+                return `
+                    <tr>
+                        <td><span class="timestamp">${formattedTimestamp}</span></td>
+                        <td>${participant.name}</td>
+                        <td>${slotTags}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Update participants table (admin page)
         function updateParticipantsTable() {
             const tbody = document.getElementById('participantsTableBody');
             
@@ -1078,6 +1187,7 @@
                 await loadData();
                 updateSlotCounts();
                 updateParticipantsTable();
+                updateBookingsTable();
                 updateStatistics();
                 showStatusMessage('Participant deleted successfully!', 'success');
             } catch (error) {
