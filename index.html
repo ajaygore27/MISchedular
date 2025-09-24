@@ -639,11 +639,11 @@
                         <input type="text" id="participantName" placeholder="Enter your full name" required>
                     </div>
                     <div class="form-group">
-                        <label for="participantEmail">Email Address</label>
+                        <label for="participantEmail">Email Address (or Phone below)</label>
                         <input type="email" id="participantEmail" placeholder="Enter your email">
                     </div>
                     <div class="form-group">
-                        <label for="participantPhone">Phone Number</label>
+                        <label for="participantPhone">Phone Number (or Email above)</label>
                         <input type="tel" id="participantPhone" placeholder="Enter your phone number">
                     </div>
                 </div>
@@ -942,95 +942,111 @@
         function updateRegisterButton() {
             const hasName = participantNameInput.value.trim().length > 0;
             const hasSlots = selectedSlots.size > 0;
-            // Only enable if valid AND button isn't already disabled (e.g., during submission)
-            registerBtn.disabled = !hasName || !hasSlots;
+            const email = participantEmailInput.value.trim();
+            const phone = participantPhoneInput.value.trim();
+            const hasContact = email.length > 0 || phone.length > 0;
+
+            registerBtn.disabled = !(hasName && hasSlots && hasContact);
         }
 
         // Registration
         registerBtn.addEventListener('click', async function() {
-            const name = participantNameInput.value.trim();
-            const email = participantEmailInput.value.trim().toLowerCase();
-            const phone = participantPhoneInput.value.trim();
-            const slots = Array.from(selectedSlots);
+        const name = participantNameInput.value.trim();
+        const email = participantEmailInput.value.trim().toLowerCase();
+        const phone = participantPhoneInput.value.trim();
+        const slots = Array.from(selectedSlots);
 
-            if (!name || slots.length === 0) {
-                showStatusMessage('Please fill in all required fields and select at least one time slot.', 'error');
+        if (!name || slots.length === 0) {
+            showStatusMessage('Please enter your name and select at least one time slot.', 'error');
+            return;
+        }
+
+        // Require at least email OR phone
+        if (!email && !phone) {
+            showStatusMessage('Please provide your email or phone number to avoid duplicate bookings.', 'warning');
+            return;
+        }
+
+        // Generate a unique document ID
+        let docId = null;
+        if (email) {
+            docId = email; // Use email as primary key
+        } else {
+            // Use phone (digits only) as fallback
+            const cleanPhone = phone.replace(/\D/g, '');
+            if (cleanPhone.length < 6) {
+                showStatusMessage('Please enter a valid phone number.', 'error');
                 return;
             }
+            docId = 'p_' + cleanPhone;
+        }
 
-            // Generate a unique ID for the participant
-            let participantId = null;
-            if (email) {
-                participantId = email; // Use email as ID (lowercase for consistency)
-            } else if (phone) {
-                participantId = 'p_' + phone.replace(/\D/g, ''); // Remove non-digits
-            } else {
-                participantId = 'n_' + name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-            }
+        // Prevent double-click submission
+        if (registerBtn.disabled) return;
+        registerBtn.disabled = true;
+        showLoading(true);
 
-            // Prevent double submission
-            if (registerBtn.disabled) return;
-            registerBtn.disabled = true;
-            showLoading(true);
+        try {
+            const participantRef = db.collection('participants').doc(docId);
+            const doc = await participantRef.get();
 
-            try {
-                const participantRef = db.collection('participants').doc(participantId);
-                const doc = await participantRef.get();
+            if (doc.exists) {
+                const existing = doc.data();
+                const existingSlots = Array.isArray(existing.slots) ? existing.slots : [];
+                const newSlots = slots.filter(s => !existingSlots.includes(s));
+                const duplicateSlots = slots.filter(s => existingSlots.includes(s));
 
-                if (doc.exists) {
-                    // Participant exists: merge new slots
-                    const existingData = doc.data();
-                    const existingSlots = Array.isArray(existingData.slots) ? existingData.slots : [];
-                    const duplicateSlots = slots.filter(s => existingSlots.includes(s));
-                    const newSlots = slots.filter(s => !existingSlots.includes(s));
-
-                    if (newSlots.length === 0) {
-                        showStatusMessage(`You're already registered for these slots!`, 'error');
-                    } else {
-                        const updatedSlots = [...new Set([...existingSlots, ...newSlots])];
-                        await participantRef.update({
-                            slots: updatedSlots,
-                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                        });
-                        const info = duplicateSlots.length > 0 ? ` (skipped: ${duplicateSlots.join(', ')})` : '';
-                        showStatusMessage(`Updated your booking!${info}`, 'success');
-                    }
+                if (newSlots.length === 0) {
+                    showStatusMessage(`You're already booked for all selected slots!`, 'success');
                 } else {
-                    // New participant
-                    await participantRef.set({
-                        name: name,
-                        email: email || '',
-                        phone: phone || '',
-                        slots: slots,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    const mergedSlots = [...new Set([...existingSlots, ...newSlots])];
+                    await participantRef.update({
+                        name: name, // In case they correct spelling
+                        email: email || existing.email,
+                        phone: phone || existing.phone,
+                        slots: mergedSlots,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
-                    showStatusMessage(`Successfully registered ${name}!`, 'success');
+                    const dupMsg = duplicateSlots.length ? ` (skipped: ${duplicateSlots.join(', ')})` : '';
+                    showStatusMessage(`Booking updated!${dupMsg}`, 'success');
                 }
-
-                await loadData();
-                updateSlotCounts();
-                updateParticipantsTable();
-                updateBookingsTable();
-                updateStatistics();
-                updateLeaderboard7Days();
-
-                // Clear form
-                participantNameInput.value = '';
-                participantEmailInput.value = '';
-                participantPhoneInput.value = '';
-                selectedSlots.clear();
-                document.querySelectorAll('.slot').forEach(slot => slot.classList.remove('selected'));
-                updateRegisterButton();
-
-            } catch (error) {
-                console.error('Error registering participant:', error);
-                showStatusMessage(`Registration failed: ${error.message || 'Unknown error'}`, 'error');
-            } finally {
-                showLoading(false);
-                registerBtn.disabled = false; // Re-enable button
+            } else {
+                // New participant
+                await participantRef.set({
+                    name: name,
+                    email: email,
+                    phone: phone,
+                    slots: slots,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                showStatusMessage(`Successfully booked for ${name}!`, 'success');
             }
-        });
+
+            // Refresh UI
+            await loadData();
+            updateSlotCounts();
+            updateParticipantsTable();
+            updateBookingsTable();
+            updateStatistics();
+            updateLeaderboard7Days();
+
+            // Clear form
+            participantNameInput.value = '';
+            participantEmailInput.value = '';
+            participantPhoneInput.value = '';
+            selectedSlots.clear();
+            document.querySelectorAll('.slot').forEach(s => s.classList.remove('selected'));
+            updateRegisterButton();
+
+        } catch (error) {
+            console.error('Registration error:', error);
+            showStatusMessage(`Booking failed: ${error.message || 'Unknown error'}`, 'error');
+        } finally {
+            showLoading(false);
+            registerBtn.disabled = false;
+        }
+    });
 
         clearBtn.addEventListener('click', function() {
             selectedSlots.clear();
