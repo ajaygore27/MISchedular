@@ -639,11 +639,11 @@
                         <input type="text" id="participantName" placeholder="Enter your full name" required>
                     </div>
                     <div class="form-group">
-                        <label for="participantEmail">Email Address</label>
+                        <label for="participantEmail">Email Address * (or Phone below)</label>
                         <input type="email" id="participantEmail" placeholder="Enter your email">
                     </div>
                     <div class="form-group">
-                        <label for="participantPhone">Phone Number</label>
+                        <label for="participantPhone">Phone Number * (or Email above)</label>
                         <input type="tel" id="participantPhone" placeholder="Enter your phone number">
                     </div>
                 </div>
@@ -942,89 +942,111 @@
         function updateRegisterButton() {
             const hasName = participantNameInput.value.trim().length > 0;
             const hasSlots = selectedSlots.size > 0;
-            registerBtn.disabled = !hasName || !hasSlots;
+            const email = participantEmailInput.value.trim();
+            const phone = participantPhoneInput.value.trim();
+            const hasContact = email.length > 0 || phone.length > 0;
+
+            registerBtn.disabled = !(hasName && hasSlots && hasContact);
         }
 
         // Registration
         registerBtn.addEventListener('click', async function() {
-            const name = participantNameInput.value.trim();
-            const email = participantEmailInput.value.trim();
-            const phone = participantPhoneInput.value.trim();
-            const slots = Array.from(selectedSlots);
-            
-            if (!name || slots.length === 0) {
-                showStatusMessage('Please fill in all required fields and select at least one time slot.', 'error');
+        const name = participantNameInput.value.trim();
+        const email = participantEmailInput.value.trim().toLowerCase();
+        const phone = participantPhoneInput.value.trim();
+        const slots = Array.from(selectedSlots);
+
+        if (!name || slots.length === 0) {
+            showStatusMessage('Please enter your name and select at least one time slot.', 'error');
+            return;
+        }
+
+        // Require at least email OR phone
+        if (!email && !phone) {
+            showStatusMessage('Please provide your email or phone number to avoid duplicate bookings.', 'warning');
+            return;
+        }
+
+        // Generate a unique document ID
+        let docId = null;
+        if (email) {
+            docId = email; // Use email as primary key
+        } else {
+            // Use phone (digits only) as fallback
+            const cleanPhone = phone.replace(/\D/g, '');
+            if (cleanPhone.length < 6) {
+                showStatusMessage('Please enter a valid phone number.', 'error');
                 return;
             }
+            docId = 'p_' + cleanPhone;
+        }
 
-            showLoading(true);
+        // Prevent double-click submission
+        if (registerBtn.disabled) return;
+        registerBtn.disabled = true;
+        showLoading(true);
 
-            try {
-                // Check if participant already exists
-                const existingParticipant = participants.find(p => p.name.toLowerCase() === name.toLowerCase());
-                
-                if (existingParticipant) {
-                    // Update existing participant's slots
-                    // const updatedSlots = [...new Set([...existingParticipant.slots, ...slots])];
-                    // await db.collection('participants').doc(existingParticipant.id).update({
-                    //     slots: updatedSlots,
-                    //     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    // });
-                    // showStatusMessage(`Updated slots for ${name}!`, 'success');
-                     // Prevent duplicate entries for the same time slot
-                     const duplicateSlots = slots.filter(s => Array.isArray(existingParticipant.slots) && existingParticipant.slots.includes(s));
-                    const newOnlySlots = slots.filter(s => !Array.isArray(existingParticipant.slots) || !existingParticipant.slots.includes(s));
+        try {
+            const participantRef = db.collection('participants').doc(docId);
+            const doc = await participantRef.get();
 
-                    if (duplicateSlots.length > 0 && newOnlySlots.length === 0) {
-                        showStatusMessage(`Entry already exists for ${name} in: ${duplicateSlots.join(', ')}`, 'error');
-                        return;
-                    }
+            if (doc.exists) {
+                const existing = doc.data();
+                const existingSlots = Array.isArray(existing.slots) ? existing.slots : [];
+                const newSlots = slots.filter(s => !existingSlots.includes(s));
+                const duplicateSlots = slots.filter(s => existingSlots.includes(s));
 
-                    if (newOnlySlots.length > 0) {
-                        const updatedSlots = [...new Set([...(existingParticipant.slots || []), ...newOnlySlots])];
-                        await db.collection('participants').doc(existingParticipant.id).update({
-                            slots: updatedSlots,
-                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                        });
-                        const info = duplicateSlots.length > 0 ? ` (skipped existing: ${duplicateSlots.join(', ')})` : '';
-                        showStatusMessage(`Updated slots for ${name}!${info}`, 'success');
-                    }
+                if (newSlots.length === 0) {
+                    showStatusMessage(`You're already booked for all selected slots!`, 'success');
                 } else {
-                    // Add new participant
-                    const docRef = await db.collection('participants').add({
-                        name: name,
-                        email: email,
-                        phone: phone,
-                        slots: slots,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    const mergedSlots = [...new Set([...existingSlots, ...newSlots])];
+                    await participantRef.update({
+                        name: name, // In case they correct spelling
+                        email: email || existing.email,
+                        phone: phone || existing.phone,
+                        slots: mergedSlots,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
-                    showStatusMessage(`Successfully registered ${name}!`, 'success');
+                    const dupMsg = duplicateSlots.length ? ` (skipped: ${duplicateSlots.join(', ')})` : '';
+                    showStatusMessage(`Booking updated!${dupMsg}`, 'success');
                 }
-
-                await loadData();
-                updateSlotCounts();
-                updateParticipantsTable();
-                updateBookingsTable();
-                updateStatistics();
-                
-                // Clear form
-                participantNameInput.value = '';
-                participantEmailInput.value = '';
-                participantPhoneInput.value = '';
-                selectedSlots.clear();
-                document.querySelectorAll('.slot').forEach(slot => slot.classList.remove('selected'));
-                updateRegisterButton();
-                
-            } catch (error) {
-                console.error('Error registering participant:', error);
-                const code = error && error.code ? error.code : 'unknown';
-                const msg = error && error.message ? error.message : JSON.stringify(error);
-                showStatusMessage(`Error registering participant: ${code} - ${msg}`, 'error');
-            } finally {
-                showLoading(false);
+            } else {
+                // New participant
+                await participantRef.set({
+                    name: name,
+                    email: email,
+                    phone: phone,
+                    slots: slots,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                showStatusMessage(`Successfully booked for ${name}!`, 'success');
             }
-        });
+
+            // Refresh UI
+            await loadData();
+            updateSlotCounts();
+            updateParticipantsTable();
+            updateBookingsTable();
+            updateStatistics();
+            updateLeaderboard7Days();
+
+            // Clear form
+            participantNameInput.value = '';
+            participantEmailInput.value = '';
+            participantPhoneInput.value = '';
+            selectedSlots.clear();
+            document.querySelectorAll('.slot').forEach(s => s.classList.remove('selected'));
+            updateRegisterButton();
+
+        } catch (error) {
+            console.error('Registration error:', error);
+            showStatusMessage(`Booking failed: ${error.message || 'Unknown error'}`, 'error');
+        } finally {
+            showLoading(false);
+            registerBtn.disabled = false;
+        }
+    });
 
         clearBtn.addEventListener('click', function() {
             selectedSlots.clear();
