@@ -942,59 +942,65 @@
         function updateRegisterButton() {
             const hasName = participantNameInput.value.trim().length > 0;
             const hasSlots = selectedSlots.size > 0;
+            // Only enable if valid AND button isn't already disabled (e.g., during submission)
             registerBtn.disabled = !hasName || !hasSlots;
         }
 
         // Registration
         registerBtn.addEventListener('click', async function() {
             const name = participantNameInput.value.trim();
-            const email = participantEmailInput.value.trim();
+            const email = participantEmailInput.value.trim().toLowerCase();
             const phone = participantPhoneInput.value.trim();
             const slots = Array.from(selectedSlots);
-            
+
             if (!name || slots.length === 0) {
                 showStatusMessage('Please fill in all required fields and select at least one time slot.', 'error');
                 return;
             }
 
+            // Generate a unique ID for the participant
+            let participantId = null;
+            if (email) {
+                participantId = email; // Use email as ID (lowercase for consistency)
+            } else if (phone) {
+                participantId = 'p_' + phone.replace(/\D/g, ''); // Remove non-digits
+            } else {
+                participantId = 'n_' + name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+            }
+
+            // Prevent double submission
+            if (registerBtn.disabled) return;
+            registerBtn.disabled = true;
             showLoading(true);
 
             try {
-                // Check if participant already exists
-                const existingParticipant = participants.find(p => p.name.toLowerCase() === name.toLowerCase());
-                
-                if (existingParticipant) {
-                    // Update existing participant's slots
-                    // const updatedSlots = [...new Set([...existingParticipant.slots, ...slots])];
-                    // await db.collection('participants').doc(existingParticipant.id).update({
-                    //     slots: updatedSlots,
-                    //     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    // });
-                    // showStatusMessage(`Updated slots for ${name}!`, 'success');
-                     // Prevent duplicate entries for the same time slot
-                     const duplicateSlots = slots.filter(s => Array.isArray(existingParticipant.slots) && existingParticipant.slots.includes(s));
-                    const newOnlySlots = slots.filter(s => !Array.isArray(existingParticipant.slots) || !existingParticipant.slots.includes(s));
+                const participantRef = db.collection('participants').doc(participantId);
+                const doc = await participantRef.get();
 
-                    if (duplicateSlots.length > 0 && newOnlySlots.length === 0) {
-                        showStatusMessage(`Entry already exists for ${name} in: ${duplicateSlots.join(', ')}`, 'error');
-                        return;
-                    }
+                if (doc.exists) {
+                    // Participant exists: merge new slots
+                    const existingData = doc.data();
+                    const existingSlots = Array.isArray(existingData.slots) ? existingData.slots : [];
+                    const duplicateSlots = slots.filter(s => existingSlots.includes(s));
+                    const newSlots = slots.filter(s => !existingSlots.includes(s));
 
-                    if (newOnlySlots.length > 0) {
-                        const updatedSlots = [...new Set([...(existingParticipant.slots || []), ...newOnlySlots])];
-                        await db.collection('participants').doc(existingParticipant.id).update({
+                    if (newSlots.length === 0) {
+                        showStatusMessage(`You're already registered for these slots!`, 'error');
+                    } else {
+                        const updatedSlots = [...new Set([...existingSlots, ...newSlots])];
+                        await participantRef.update({
                             slots: updatedSlots,
                             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                         });
-                        const info = duplicateSlots.length > 0 ? ` (skipped existing: ${duplicateSlots.join(', ')})` : '';
-                        showStatusMessage(`Updated slots for ${name}!${info}`, 'success');
+                        const info = duplicateSlots.length > 0 ? ` (skipped: ${duplicateSlots.join(', ')})` : '';
+                        showStatusMessage(`Updated your booking!${info}`, 'success');
                     }
                 } else {
-                    // Add new participant
-                    const docRef = await db.collection('participants').add({
+                    // New participant
+                    await participantRef.set({
                         name: name,
-                        email: email,
-                        phone: phone,
+                        email: email || '',
+                        phone: phone || '',
                         slots: slots,
                         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -1007,7 +1013,8 @@
                 updateParticipantsTable();
                 updateBookingsTable();
                 updateStatistics();
-                
+                updateLeaderboard7Days();
+
                 // Clear form
                 participantNameInput.value = '';
                 participantEmailInput.value = '';
@@ -1015,14 +1022,13 @@
                 selectedSlots.clear();
                 document.querySelectorAll('.slot').forEach(slot => slot.classList.remove('selected'));
                 updateRegisterButton();
-                
+
             } catch (error) {
                 console.error('Error registering participant:', error);
-                const code = error && error.code ? error.code : 'unknown';
-                const msg = error && error.message ? error.message : JSON.stringify(error);
-                showStatusMessage(`Error registering participant: ${code} - ${msg}`, 'error');
+                showStatusMessage(`Registration failed: ${error.message || 'Unknown error'}`, 'error');
             } finally {
                 showLoading(false);
+                registerBtn.disabled = false; // Re-enable button
             }
         });
 
